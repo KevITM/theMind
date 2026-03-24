@@ -18,7 +18,6 @@ find_package(asio CONFIG REQUIRED)
 add_executable(the_mind_app 
     src/main.cpp 
 )
-
 # 3. Vincular las librerías al ejecutable
 target_link_libraries(the_mind_app PRIVATE fmt::fmt)
 target_link_libraries(the_mind_app PRIVATE fmt::fmt asio::asio)
@@ -33,3 +32,9 @@ target_link_libraries(core_tests PRIVATE GTest::gtest_main GTest::gtest fmt::fmt
 # Integrar los tests con CTest (el ejecutor de tests de CMake)
 include(GoogleTest)
 gtest_discover_tests(core_tests)
+
+
+# --- NUEVO: EJECUTABLE DEL CLIENTE ---
+add_executable(the_mind_client src/client.cpp)
+target_link_libraries(the_mind_client PRIVATE fmt::fmt asio::asio)
+
