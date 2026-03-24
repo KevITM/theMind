@@ -28,9 +28,9 @@ TEST(GameSessionTest, JugadaCorrectaMantieneVidas) {
     themind::GameSession sesion(2);
     
     // Tiramos un 15 en una mesa vacía
-    bool resultado = sesion.playCard(15);
+    themind::PlayResult resultado = sesion.playCard(15);
     
-    EXPECT_TRUE(resultado); // Esperamos que la jugada sea válida
+    EXPECT_EQ(resultado,themind::PlayResult::ValidPlay ); // Esperamos que la jugada sea válida
     EXPECT_EQ(sesion.getLastCard(), 15); // La mesa debe tener el 15
     EXPECT_EQ(sesion.getLives(), 3); // No deberíamos haber perdido vidas
 }
@@ -41,9 +41,9 @@ TEST(GameSessionTest, JugadaIncorrectaRestaUnaVida) {
     sesion.playCard(50); // Alguien tira un 50 (válido)
     
     // Alguien se equivoca y tira un 20 cuando ya había un 50
-    bool resultado = sesion.playCard(20); 
+    themind::PlayResult resultado = sesion.playCard(20); 
     
-    EXPECT_FALSE(resultado); // Esperamos que la jugada sea reportada como inválida
+    EXPECT_EQ(resultado, themind::PlayResult::LostLife); // Esperamos que la jugada sea reportada como inválida
     EXPECT_EQ(sesion.getLives(), 2); // ¡El equipo debió perder una vida!
 }
 
@@ -71,6 +71,21 @@ TEST(GameSessionTest, SubirDeNivelAlJugarTodasLasCartas) {
     
     EXPECT_EQ(sesion.getLevel(), 2);
     EXPECT_EQ(sesion.getLastCard(), 0); // La mesa debe limpiarse
+}
+
+TEST(GameSessionTest, PerderTodasLasVidasEsGameOver) {
+    themind::GameSession sesion(2); 
+    
+    sesion.playCard(50); // Preparamos la mesa
+    
+    // Nos equivocamos 3 veces seguidas tirando cartas menores
+    EXPECT_EQ(sesion.playCard(40), themind::PlayResult::LostLife); // Quedan 2 vidas
+    EXPECT_EQ(sesion.playCard(30), themind::PlayResult::LostLife); // Queda 1 vida
+    
+    // El golpe de gracia
+    auto resultado_final = sesion.playCard(20);
+    EXPECT_EQ(resultado_final, themind::PlayResult::GameOver); // ¡Game Over!
+    EXPECT_EQ(sesion.getLives(), 0);
 }
 
 int main(int argc, char **argv) {

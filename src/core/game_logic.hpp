@@ -50,6 +50,13 @@ namespace themind {
 
     };
 
+    enum class PlayResult {
+        ValidPlay,
+        LevelUp,
+        LostLife,
+        GameOver
+    };
+
     class GameSession{
         private:
             int lives;
@@ -78,36 +85,52 @@ namespace themind {
                     shurikens--;
                     return true;
                 }
+                return false;
                 
             }
 
-            bool playCard(int card){
+            void levelUp()
+            {
+                level++;
+                playedCards =0;
+                lastCard=0;
+                lives += std::rand() % 2; 
+                shurikens += std::rand() % 2;
+            };
+
+            PlayResult playCard(int card){
                 if(lastCard == 0){
-                    lastCard=card;
+                    lastCard = card;
                     playedCards++;
-
-
-                    if(playedCards == level*players){
-                        level++;
-                        playedCards =0;
-                        lastCard=0;
-                        lives += std::rand() % 2; 
-                        shurikens += std::rand() % 2; 
-                        
+                    if (playedCards == level * players)
+                    {
+                        levelUp(); 
+                        return PlayResult::LevelUp;
                     }
-
-                    return true;
+                    return PlayResult::ValidPlay;
                 }
 
                 if(card > lastCard)
                 {
                     lastCard=card;
-                    return true;
+                    playedCards++;
+
+                    if(playedCards == level*players){
+                        levelUp(); 
+                        return PlayResult::LevelUp;                       
+                    }
+
+                    return PlayResult::ValidPlay;
                 }
                 else
                 {
                     lives--;
-                    return false;
+                    if (lives == 0) 
+                    {
+                        return PlayResult::GameOver;
+                    }
+
+                    return PlayResult::LostLife;
                 }
             }
 
