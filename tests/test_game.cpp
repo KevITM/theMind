@@ -2,94 +2,94 @@
 #include "../src/core/game_logic.hpp" 
 
 // Los tests se dividen en 3 fases: Arrange (Preparar), Act (Actuar), Assert (Comprobar)
-
 TEST(JugadorTest, RecibirCartasAumentaElConteo) {
-    // Arrange: Creamos un jugador
     themind::player jugador1("Ada Lovelace");
-    
-    // Act: Le damos dos cartas simuladas
     jugador1.receiveCard(42);
     jugador1.receiveCard(15);
-    
-    // Assert: Comprobamos que la máquina cuente exactamente 2 cartas
     EXPECT_EQ(jugador1.getCardCount(), 2);
 }
 
 TEST(DeckTest, InicializaConCienCartas) {
-    // Arrange & Act
     themind::Deck mazo_central;
-
-    // Assert
     EXPECT_EQ(mazo_central.getRemainingCards(), 100);
 }
-
 
 TEST(GameSessionTest, JugadaCorrectaMantieneVidas) {
     themind::GameSession sesion(2);
     
-    // Tiramos un 15 en una mesa vacía
-    themind::PlayResult resultado = sesion.playCard(15);
+    // ARRANGE: Le damos legalmente la carta 15 al Jugador 0
+    sesion.getPlayer(0).receiveCard(15);
     
-    EXPECT_EQ(resultado,themind::PlayResult::ValidPlay ); // Esperamos que la jugada sea válida
-    EXPECT_EQ(sesion.getLastCard(), 15); // La mesa debe tener el 15
-    EXPECT_EQ(sesion.getLives(), 3); // No deberíamos haber perdido vidas
+    // ACT: El Jugador 0 tira el 15
+    themind::PlayResult resultado = sesion.playCard(0, 15);
+    
+    EXPECT_EQ(resultado, themind::PlayResult::ValidPlay); 
+    EXPECT_EQ(sesion.getLastCard(), 15); 
+    EXPECT_EQ(sesion.getLives(), 3); 
 }
 
 TEST(GameSessionTest, JugadaIncorrectaRestaUnaVida) {
     themind::GameSession sesion(2);
     
-    sesion.playCard(50); // Alguien tira un 50 (válido)
+    // ARRANGE: Preparamos las manos
+    sesion.getPlayer(0).receiveCard(50);
+    sesion.getPlayer(1).receiveCard(20);
     
-    // Alguien se equivoca y tira un 20 cuando ya había un 50
-    themind::PlayResult resultado = sesion.playCard(20); 
+    sesion.playCard(0, 50); // Jugador 0 tira 50 (válido)
     
-    EXPECT_EQ(resultado, themind::PlayResult::LostLife); // Esperamos que la jugada sea reportada como inválida
-    EXPECT_EQ(sesion.getLives(), 2); // ¡El equipo debió perder una vida!
+    // ACT: Jugador 1 se equivoca y tira 20
+    themind::PlayResult resultado = sesion.playCard(1, 20); 
+    
+    EXPECT_EQ(resultado, themind::PlayResult::LostLife); 
+    EXPECT_EQ(sesion.getLives(), 2); 
 }
 
 TEST(GameSessionTest, UsarShurikenReduceLaCantidad) {
-    themind::GameSession sesion(2); // 2 jugadores
-    
-    EXPECT_EQ(sesion.getShurikens(), 1); // Empezamos con 1
+    themind::GameSession sesion(2); 
+    EXPECT_EQ(sesion.getShurikens(), 1); 
     
     bool usado = sesion.useShuriken();
     EXPECT_TRUE(usado);
-    EXPECT_EQ(sesion.getShurikens(), 0); // Nos quedamos sin shurikens
+    EXPECT_EQ(sesion.getShurikens(), 0); 
     
     bool usado_de_nuevo = sesion.useShuriken();
-    EXPECT_FALSE(usado_de_nuevo); // Ya no podemos usar más
+    EXPECT_FALSE(usado_de_nuevo); 
 }
 
 TEST(GameSessionTest, SubirDeNivelAlJugarTodasLasCartas) {
-    // 2 jugadores en el nivel 1 = deben jugar 2 cartas para pasar de nivel
     themind::GameSession sesion(2); 
-    
     EXPECT_EQ(sesion.getLevel(), 1);
     
-    sesion.playCard(10); // Carta 1
-    sesion.playCard(20); // Carta 2 -> ¡Debería disparar el Level Up!
+    sesion.getPlayer(0).receiveCard(10);
+    sesion.getPlayer(1).receiveCard(20);
     
+    sesion.playCard(0, 10); // Carta 1
+    
+    // ACT: Jugador 1 tira su 20 y completa el nivel
+    auto resultado = sesion.playCard(1, 20); 
+    
+    EXPECT_EQ(resultado, themind::PlayResult::LevelUp);
     EXPECT_EQ(sesion.getLevel(), 2);
-    EXPECT_EQ(sesion.getLastCard(), 0); // La mesa debe limpiarse
+    EXPECT_EQ(sesion.getLastCard(), 0); 
 }
 
 TEST(GameSessionTest, PerderTodasLasVidasEsGameOver) {
     themind::GameSession sesion(2); 
     
-    sesion.playCard(50); // Preparamos la mesa
+    // ARRANGE: Le damos al Jugador 1 las cartas para que pueda equivocarse
+    sesion.getPlayer(0).receiveCard(50);
+    sesion.getPlayer(1).receiveCard(40);
+    sesion.getPlayer(1).receiveCard(30);
+    sesion.getPlayer(1).receiveCard(20);
     
-    // Nos equivocamos 3 veces seguidas tirando cartas menores
-    EXPECT_EQ(sesion.playCard(40), themind::PlayResult::LostLife); // Quedan 2 vidas
-    EXPECT_EQ(sesion.playCard(30), themind::PlayResult::LostLife); // Queda 1 vida
+    sesion.playCard(0, 50); // Preparamos la mesa en 50
+    
+    // Nos equivocamos 3 veces seguidas tirando cartas menores (que sí tenemos en la mano)
+    EXPECT_EQ(sesion.playCard(1, 40), themind::PlayResult::LostLife); // Quedan 2 vidas
+    EXPECT_EQ(sesion.playCard(1, 30), themind::PlayResult::LostLife); // Queda 1 vida
     
     // El golpe de gracia
-    auto resultado_final = sesion.playCard(20);
-    EXPECT_EQ(resultado_final, themind::PlayResult::GameOver); // ¡Game Over!
+    auto resultado_final = sesion.playCard(1, 20);
+    EXPECT_EQ(resultado_final, themind::PlayResult::GameOver); 
     EXPECT_EQ(sesion.getLives(), 0);
 }
-
-int main(int argc, char **argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}
-

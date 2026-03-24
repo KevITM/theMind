@@ -2,6 +2,7 @@
 #include <string>
 #include <fmt/core.h>
 #include <asio.hpp>
+#include <thread>
 
 using asio::ip::tcp;
 
@@ -22,6 +23,30 @@ int main() {
         /*
         Este concepto de "consumir flujos de datos" es la base de cómo herramientas masivas (como Apache Kafka o los sistemas de entrenamiento distribuido) evitan perder información cuando la red es más rápida que el procesador.
          */
+
+
+         // Creamos un hilo paralelo que recibe el socket por referencia (&)
+        std::thread hilo_teclado([&socket]() {
+            std::string entrada_teclado;
+            
+            // Bucle infinito que espera a que escriba algo y presione ENTER
+            while (std::getline(std::cin, entrada_teclado)) {
+                
+                // Le agregamos un salto de línea vital para que el servidor sepa dónde termina
+                std::string mensaje_a_enviar = entrada_teclado + "\n";
+                
+                // Enviamos lo que escribiste a través de la red
+                asio::error_code error_escritura;
+                asio::write(socket, asio::buffer(mensaje_a_enviar), error_escritura);
+                
+                if (error_escritura) {
+                    break; // Si se corta la red, el hilo termina
+                }
+            }
+        });
+
+        hilo_teclado.detach();
+
         // BUCLE INFINITO DEL JUEGO
         while (true) {
             asio::error_code error;

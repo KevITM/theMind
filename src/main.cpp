@@ -2,6 +2,8 @@
 #include <vector>
 #include <fmt/core.h>
 #include <asio.hpp>
+#include <thread>
+#include <mutex>
 
 // Incluimos la lógica de nuestro juego
 #include "core/game_logic.hpp"
@@ -65,19 +67,149 @@ int main() {
             
             // 2. Formateamos el mensaje con un salto de línea ('\n') al final.
             // El '\n' es VITAL porque le dice al cliente cuándo termina el mensaje.
-            std::string msj = fmt::format("\n--- NIVEL 1 ---\nTus cartas son: {}\n", mano);
-            
+            std::string msj = fmt::format("\n=== NIVEL {} ===\nVidas: {} | Shurikens: {}\nTu mano: {}\n", 
+                                                                        sesion.getLevel(), sesion.getLives(), sesion.getShurikens(), mano);            
             // 3. Enviamos el texto por su cable correspondiente
             asio::write(sockets_jugadores[i], asio::buffer(msj));
         }
 
-        // Para evitar que el servidor se cierre de golpe, lo pausamos temporalmente
-        // pidiéndole al administrador que presione Enter en la consola.
-        fmt::print("Presiona ENTER para cerrar el servidor...");
-        std::cin.get();
+        // --- EL CEREBRO DEL JUEGO MULTIHILO ---
+        std::mutex mutex_mesa; // Nuestro escudo para proteger la sesión de juego
+
+        // Creamos un hilo para escuchar a cada jugador individualmente
+        std::vector<std::thread> hilos_escucha;
+
+        for (int i = 0; i < num_jugadores_esperados; ++i) {
+            // Creamos un hilo y le pasamos referencias a todo lo que necesita
+            hilos_escucha.push_back(std::thread([i, num_jugadores_esperados, &sockets_jugadores, &sesion, &mutex_mesa]() {                
+                asio::streambuf buffer_recepcion;
+                
+                // Bucle infinito escuchando a este jugador específico
+                while (true) {
+                    asio::error_code error;
+                    asio::read_until(sockets_jugadores[i], buffer_recepcion, '\n', error);
+
+                    if (error) {
+                        fmt::print("[!] Jugador {} se ha desconectado.\n", i + 1);
+                        break;
+                    }
+
+                    // Extraemos lo que escribió el jugador
+                    std::istream stream_entrada(&buffer_recepcion);
+                    std::string mensaje_recibido;
+                    std::getline(stream_entrada, mensaje_recibido);
+
+                    try {
+
+                        
+                        // === ZONA CRÍTICA: PROTEGIDA POR MUTEX ===
+                        {
+                            std::lock_guard<std::mutex> lock(mutex_mesa);
+                            
+                            // Función helper (Lambda) para repartir un nuevo nivel y avisar a todos
+                            auto iniciar_y_repartir_nivel = [&]() {
+                                sesion.start(); // Baraja y reparte internamente
+                                for (int j = 0; j < num_jugadores_esperados; ++j) {
+                                    std::string mano = sesion.getPlayer(j).getHandAsString();
+                                    std::string msj_estado = fmt::format("\n=== NIVEL {} ===\nVidas: {} | Shurikens: {}\nTu mano: {}\n", 
+                                                                        sesion.getLevel(), sesion.getLives(), sesion.getShurikens(), mano);
+                                    asio::write(sockets_jugadores[j], asio::buffer(msj_estado));
+                                }
+                            };
+
+                            // 1. ¿EL JUGADOR TIRÓ UN SHURIKEN?
+                            if (mensaje_recibido == "S" || mensaje_recibido == "s") {
+                                std::string reporte_shuriken;
+                                bool paso_nivel = sesion.useShuriken(reporte_shuriken);
+                                
+                                // Avisamos a todos qué cartas se descartaron
+                                for (auto& sock : sockets_jugadores) {
+                                    asio::write(sock, asio::buffer(reporte_shuriken));
+                                }
+
+                                if (paso_nivel) {
+                                    std::string msj = fmt::format("\n>> ¡EXCELENTE! Avanzan al Nivel {}.\n", sesion.getLevel());
+                                    for (auto& sock : sockets_jugadores) asio::write(sock, asio::buffer(msj));
+                                    iniciar_y_repartir_nivel();
+                                }
+                                continue; // Terminamos el turno de este hilo
+                            }
+
+                            // 2. LÓGICA DE JUGAR UNA CARTA NORMAL
+                            try {
+                                int carta_jugada = std::stoi(mensaje_recibido);
+                                mensaje_recibido.erase(mensaje_recibido.find_last_not_of(" \n\r\t") + 1);
+
+                                fmt::print("Jugador {} intenta jugar la carta: {}\n", i + 1, carta_jugada);
+                                
+                                // Pasamos 'i' (el índice del jugador) y la carta
+                                themind::PlayResult resultado = sesion.playCard(i, carta_jugada);
+                                std::string mensaje_global = "";
+
+                                // Evaluamos qué pasó
+                                if (resultado == themind::PlayResult::InvalidCard) {
+                                    asio::write(sockets_jugadores[i], asio::buffer(">> [SISTEMA] No tienes esa carta en tu mano.\n"));
+                                    continue; 
+                                }
+                                else if (resultado == themind::PlayResult::ValidPlay) {
+                                    mensaje_global = fmt::format(">> Jugador {} jugo un {}. (Mesa: {})\n", i + 1, carta_jugada, carta_jugada);
+                                } 
+                                else if (resultado == themind::PlayResult::LostLife) {
+                                    mensaje_global = fmt::format(">> [ERROR] Jugador {} tiro un {}. ¡PERDIERON UNA VIDA!\n", i + 1, carta_jugada);
+                                }
+                                else if (resultado == themind::PlayResult::LostLifeAndLevelUp) {
+                                    mensaje_global = fmt::format(">> [ERROR] Jugador {} tiro un {}. ¡PERDIERON UNA VIDA! Pero lograron vaciar sus manos...\n", i + 1, carta_jugada);
+                                }
+                                else if (resultado == themind::PlayResult::GameOver) {
+                                    mensaje_global = ">> [GAME OVER] Se quedaron sin vidas. El experimento ha terminado.\n";
+                                    for (auto& sock : sockets_jugadores) asio::write(sock, asio::buffer(mensaje_global));
+                                    break;
+                                }
+
+                                // 1. BROADCAST: Enviamos el resultado de la mesa a todos
+                                for (auto& sock : sockets_jugadores) asio::write(sock, asio::buffer(mensaje_global));
+
+                                // 2. ACTUALIZACIÓN DE HUD: Le enviamos a cada jugador sus cartas restantes
+                                if (resultado == themind::PlayResult::ValidPlay || resultado == themind::PlayResult::LostLife) {
+                                    for (int j = 0; j < num_jugadores_esperados; ++j) {
+                                        std::string mi_mano = sesion.getPlayer(j).getHandAsString();
+                                        if (mi_mano.empty()) mi_mano = "[Ninguna]"; // UX para que no se vea vacío
+                                        
+                                        std::string hud = fmt::format("---| Tu mano actual: {} | Vidas equipo: {} |---\n", mi_mano, sesion.getLives());
+                                        asio::write(sockets_jugadores[j], asio::buffer(hud));
+                                    }
+                                }
+
+                                // 3. SUBIR DE NIVEL: Si ganaron (limpios o con error), repartimos el siguiente
+                                if (resultado == themind::PlayResult::LevelUp || resultado == themind::PlayResult::LostLifeAndLevelUp) {
+                                    std::string msj = fmt::format("\n>> Preparando el Nivel {}...\n", sesion.getLevel());
+                                    for (auto& sock : sockets_jugadores) asio::write(sock, asio::buffer(msj));
+                                    iniciar_y_repartir_nivel();
+                                }
+
+                            } catch (const std::invalid_argument&) {
+                                asio::write(sockets_jugadores[i], asio::buffer("Comando invalido. Usa un numero o 'S' para Shuriken.\n"));
+                            }
+                        }
+                        // === FIN DE ZONA CRÍTICA === (El lock_guard suelta el bastón automáticamente aquí)
+
+                    } catch (const std::invalid_argument&) {
+                        // Si el usuario escribe "hola" en lugar de un número, lo ignoramos
+                        std::string msj_error = "Por favor, escribe solo el numero de la carta.\n";
+                        asio::write(sockets_jugadores[i], asio::buffer(msj_error));
+                    }
+                }
+            }));
+        }
+
+        // Le decimos al hilo principal del servidor que espere a que todos los hilos 
+        // secundarios terminen (cosa que solo pasará si cierran el juego)
+        for (auto& hilo : hilos_escucha) {
+            hilo.join();
+        }
 
     } catch (std::exception& e) {
-        fmt::print("Error crítico de red: {}\n", e.what());
+        fmt::print("Error crítico: {}\n", e.what());
     }
 
     return 0;
