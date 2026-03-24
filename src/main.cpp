@@ -58,6 +58,19 @@ int main() {
 
         fmt::print("Nivel 1 iniciado. Cartas repartidas en la memoria del servidor.\n");
 
+        // --- ENVIAMOS LAS CARTAS A CADA CLIENTE ---
+        for (int i = 0; i < num_jugadores_esperados; ++i) {
+            // 1. Obtenemos las cartas de este jugador específico en formato texto
+            std::string mano = sesion.getPlayer(i).getHandAsString();
+            
+            // 2. Formateamos el mensaje con un salto de línea ('\n') al final.
+            // El '\n' es VITAL porque le dice al cliente cuándo termina el mensaje.
+            std::string msj = fmt::format("\n--- NIVEL 1 ---\nTus cartas son: {}\n", mano);
+            
+            // 3. Enviamos el texto por su cable correspondiente
+            asio::write(sockets_jugadores[i], asio::buffer(msj));
+        }
+
         // Para evitar que el servidor se cierre de golpe, lo pausamos temporalmente
         // pidiéndole al administrador que presione Enter en la consola.
         fmt::print("Presiona ENTER para cerrar el servidor...");

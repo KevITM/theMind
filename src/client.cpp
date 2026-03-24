@@ -18,26 +18,31 @@ int main() {
         
         fmt::print("[+] ¡Conectado a la mesa con éxito!\n\n");
 
-        // 2. Preparamos un buffer de memoria para recibir el mensaje de bienvenida
-        asio::streambuf buffer_recepcion;
-        asio::error_code error;
+        asio::streambuf buffer_recepcion; /* si se deja andetro de while se crear un nuevo buffer y se elimina todo*/
+        /*
+        Este concepto de "consumir flujos de datos" es la base de cómo herramientas masivas (como Apache Kafka o los sistemas de entrenamiento distribuido) evitan perder información cuando la red es más rápida que el procesador.
+         */
+        // BUCLE INFINITO DEL JUEGO
+        while (true) {
+            asio::error_code error;
 
-        // 3. Leemos de la red hasta encontrar un salto de línea ('\n')
-        asio::read_until(socket, buffer_recepcion, '\n', error);
+            // El programa se pausa aquí esperando a que el servidor diga algo
+            asio::read_until(socket, buffer_recepcion, '\n', error);
 
-        if (!error) {
-            // Extraemos el texto del buffer de Asio y lo convertimos a un string de C++
+            // Si hay un error (ej. el servidor se cerró o se cayó el internet)
+            if (error) {
+                fmt::print("\n[!] Desconectado del servidor.\n");
+                break; // Rompemos el bucle y el programa termina
+            }
+
+            // Extraemos e imprimimos el mensaje
             std::istream stream_entrada(&buffer_recepcion);
             std::string mensaje_servidor;
             std::getline(stream_entrada, mensaje_servidor);
 
-            // Imprimimos lo que nos dijo el servidor
-            fmt::print("Servidor dice: {}\n", mensaje_servidor);
+            fmt::print("{}\n", mensaje_servidor);
         }
 
-        // Pausa antes de cerrar
-        fmt::print("\nPresiona ENTER para salir...");
-        std::cin.get();
 
     } catch (std::exception& e) {
         fmt::print("Error de conexión: ¿Está el servidor encendido?\nDetalle: {}\n", e.what());

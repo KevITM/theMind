@@ -59,6 +59,15 @@ namespace themind {
                     this->cartas.push_back(num);
                 };
 
+                // Devuelve las cartas formateadas como un texto separado por espacios
+                std::string getHandAsString() const {
+                    std::string hand = "";
+                    for (int c : cartas) {
+                        hand += std::to_string(c) + " ";
+                    }
+                    return hand;
+                }
+
                 int getCardCount(){
                     return this->cartas.size();
                 };
@@ -89,7 +98,6 @@ namespace themind {
                 this->lives=3;
                 this->lastCard=0;
                 this->shurikens=1;
-                this->players=players;
                 this->playedCards = 0;
                 std::srand(std::time(NULL));
 
@@ -172,6 +180,9 @@ namespace themind {
         int getLevel() const { return level; }
         int getLives() const { return lives; }
         int getLastCard() const { return lastCard; }
+        player getPlayer(int index) const {
+            return players[index];
+        }
 
     };
 
