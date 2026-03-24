@@ -5,7 +5,7 @@
 
 TEST(JugadorTest, RecibirCartasAumentaElConteo) {
     // Arrange: Creamos un jugador
-    themind::Jugador jugador1("Ada Lovelace");
+    themind::player jugador1("Ada Lovelace");
     
     // Act: Le damos dos cartas simuladas
     jugador1.receiveCard(42);

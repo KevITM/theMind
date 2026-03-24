@@ -3,39 +3,55 @@
 #include <string>
 #include <cstdlib>
 #include <ctime>
+#include <random> // Required for random number generators
+#include <algorithm> // Required for std::shuffle
+#include <chrono>    // Required for time-based seeding
 
 // Usamos un 'namespace' para encapsular nuestra lógica y que no choque con otras librerías
 namespace themind {
 
-    // En The Mind, el mazo central es crucial. 
-    // Esta clase representa el mazo de cartas del 1 al 100.
     class Deck {
     private:
-        // std::vector es el equivalente a las listas de Python.
-        // Crece y se destruye dinámicamente. ¡Cero fugas de memoria!
         std::vector<int> cards;
 
     public:
-        // Constructor: Se ejecuta al crear un objeto Deck
         Deck() {
-            // Llenamos el mazo con cartas del 1 al 100
             cards.resize(100);
             std::iota(cards.begin(), cards.end(), 1); 
         }
+        void reset(){
+            cards.resize(100);
+            std::iota(cards.begin(),cards.end(),1); /*rellenar un rango con incrementos secuenciales.*/
 
-        // Método constante (const): Promete que no modificará el estado del mazo
+        }
+
+        void shuffle()
+        {
+            unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+            std::mt19937 rng(seed);
+            std::shuffle(cards.begin(), cards.end(), rng);
+
+
+        }
+
+        int drawCard() {
+                int temCard = cards.back();
+                cards.pop_back();
+                return temCard; 
+            }
+
         int getRemainingCards() const {
             return cards.size();
         }
     };
 
-    class Jugador{
+    class player{
         private:
             std::string mombre;
             std::vector<int> cartas;
 
             public:
-                Jugador(std::string nombre){
+                player(std::string nombre){
                     this->mombre=nombre;
                 };
 
@@ -63,11 +79,12 @@ namespace themind {
             int level;
             int lastCard;
             int shurikens;
-            int players;
+            std::vector<player> players;
             int playedCards;
+            Deck deck;
 
         public:
-            GameSession(int players){
+            GameSession(int nPlayers){
                 this->level=1;
                 this->lives=3;
                 this->lastCard=0;
@@ -76,8 +93,25 @@ namespace themind {
                 this->playedCards = 0;
                 std::srand(std::time(NULL));
 
+                for(int i = 0; i < nPlayers; i++) {
+                    players.push_back(player("player " + std::to_string(i + 1)));
+                }
+
 
             };     
+
+            
+            void start()
+            {
+                deck.reset();
+                deck.shuffle();
+                /*for(player player : players){ así me haría una copia del jugador, no me utilizaría el mismo*/ 
+                for(auto& player : players){ /*acá traigo mi jugador usando &, auto es para que averigue el tipo */
+                    for( int i = 0; i < level; i++){
+                        player.receiveCard(deck.drawCard());
+                    }
+                }
+            };
 
             bool useShuriken(){
                 if (shurikens > 0)
@@ -102,7 +136,7 @@ namespace themind {
                 if(lastCard == 0){
                     lastCard = card;
                     playedCards++;
-                    if (playedCards == level * players)
+                    if (playedCards == level * players.size())
                     {
                         levelUp(); 
                         return PlayResult::LevelUp;
@@ -115,7 +149,7 @@ namespace themind {
                     lastCard=card;
                     playedCards++;
 
-                    if(playedCards == level*players){
+                    if(playedCards == level*players.size()){
                         levelUp(); 
                         return PlayResult::LevelUp;                       
                     }
