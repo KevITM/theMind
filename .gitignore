@@ -1,0 +1,55 @@
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+*.bin
+
+# Folders for build artifacts (common examples)
+bin/
+obj/
+build/
+Debug/
+Release/
+
+# IDE specific files (e.g., Visual Studio, CLion, QtCreator)
+*.aps
+*.ncb
+*.opensdf
+*.sdf
+*.suo
+*.user
+*.cas
+*.project
+*.solution
+*.vc*
+.idea/
+cmake-build-*/
+Makefile*
