@@ -12,6 +12,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(fmt CONFIG REQUIRED)
 find_package(GTest CONFIG REQUIRED)
 find_package(asio CONFIG REQUIRED)
+find_package(nlohmann_json CONFIG REQUIRED)
 
 # 2. Definir el ejecutable principal (ejemplo: el servidor o el juego local)
 # Aquí agregas los archivos fuente que componen este ejecutable
@@ -21,6 +22,7 @@ add_executable(the_mind_app
 # 3. Vincular las librerías al ejecutable
 target_link_libraries(the_mind_app PRIVATE fmt::fmt)
 target_link_libraries(the_mind_app PRIVATE fmt::fmt asio::asio)
+target_link_libraries(the_mind_app PRIVATE fmt::fmt asio::asio nlohmann_json::nlohmann_json)
 
 # 4. Configuración de Tests Unitarios
 enable_testing()

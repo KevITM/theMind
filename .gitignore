@@ -53,3 +53,5 @@ Release/
 .idea/
 cmake-build-*/
 Makefile*
+
+checkpoint.json

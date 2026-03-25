@@ -4,6 +4,7 @@
   "dependencies": [
     "fmt",
     "gtest",
-    "asio"
+    "asio",
+    "nlohmann-json"
   ]
 }
