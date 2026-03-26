@@ -57,6 +57,10 @@ namespace themind {
                 }
                 player.sortHand();
             }
+
+            saveCheckpoint();
+            // Opcional: imprimir en la consola del servidor
+            fmt::print("[SISTEMA] Partida guardada (Estado Nivel {}) en checkpoint.json\n", level);
         }
 
         bool useShuriken(){
@@ -66,6 +70,46 @@ namespace themind {
                 return true;
             }
             return false;
+        }
+        
+        // Lee el archivo y restaura toda la máquina de estados
+        bool loadCheckpoint(const std::string& filename = "checkpoint.json") {
+            std::ifstream file(filename);
+            if (!file.is_open()) {
+                return false; // No hay partida guardada
+            }
+
+            try {
+                json j;
+                file >> j; // Pasamos el texto del archivo a nuestro objeto JSON
+                
+                // Restauramos las variables básicas
+                level = j.at("level").get<int>();
+                lives = j.at("lives").get<int>();
+                lastCard = j.at("lastCard").get<int>();
+                shurikens = j.at("shurikens").get<int>();
+                
+                // Usamos .value() por si acaso eliminamos esta variable en versiones anteriores
+                playedCards = j.value("playedCards", 0); 
+                
+                // Restauramos el mazo
+                deck.fromJson(j.at("deck"));
+
+                // Restauramos a los jugadores
+                players.clear();
+                for (const auto& p_json : j.at("players")) {
+                    // Leemos el nombre, creamos al jugador y le damos sus cartas
+                    player p(p_json.at("nombre").get<std::string>());
+                    p.fromJson(p_json);
+                    players.push_back(p);
+                }
+                
+                return true; // Carga exitosa
+                
+            } catch (const json::exception& e) {
+                // Si el JSON está mal escrito o corrupto
+                return false; 
+            }
         }
 
         // Guarda la partida en un archivo
@@ -119,9 +163,6 @@ namespace themind {
             // Opcional: Imprimimos en la consola del servidor qué premios tocaron
             fmt::print("\n[RECOMPENSAS] Nivel completado. Vidas ganadas: {} | Shurikens ganados: {}\n", 
                        recompensa_vida, recompensa_shuriken);
-                                  
-            saveCheckpoint();
-            fmt::print("[SISTEMA] Partida guardada correctamente en checkpoint.json\n");
 
         
         }

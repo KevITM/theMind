@@ -50,31 +50,54 @@ int main() {
              En lugar de copiar megabytes de datos en memoria, simplemente cambia los "dueños" de los punteros a nivel de hardware.
             */
         }
-
+        
         fmt::print("\n¡Todos los jugadores se han conectado!\n");
-        fmt::print("Iniciando el motor del juego...\n");
-
+        
         // --- AQUÍ CONECTAMOS LA RED CON NUESTRO CEREBRO LÓGICO ---
         themind::GameSession sesion(num_jugadores_esperados);
-        sesion.start(); // Baraja y reparte las cartas del Nivel 1
+        
+        bool partida_cargada = false;
+        
+        // 1. Verificamos rápidamente si existe un checkpoint
+        std::ifstream file_check("checkpoint.json");
+        if (file_check.is_open()) {
+            file_check.close();
+            fmt::print("\n[!] Se detecto un 'checkpoint.json' en el disco.\n");
+            fmt::print("¿Deseas restaurar la partida anterior? (s/n): ");
+            
+            std::string respuesta;
+            std::getline(std::cin, respuesta);
+            
+            // 2. Intentamos cargar
+            if (respuesta == "s" || respuesta == "S") {
+                if (sesion.loadCheckpoint()) {
+                    partida_cargada = true;
+                    fmt::print(">> Partida restaurada con exito en el Nivel {}.\n", sesion.getLevel());
+                } else {
+                    fmt::print(">> Error al leer el checkpoint. El archivo podria estar corrupto.\n");
+                }
+            }
+        }
 
-        fmt::print("Nivel 1 iniciado. Cartas repartidas en la memoria del servidor.\n");
+        // 3. Si no quisieron cargar, o falló la carga, o no existía el archivo:
+        if (!partida_cargada) {
+            fmt::print("Iniciando una nueva partida desde cero...\n");
+            sesion.start(); // Baraja y reparte el Nivel 1
+        }
 
-        // --- ENVIAMOS LAS CARTAS A CADA CLIENTE ---
+        // 4. ENVIAMOS EL ESTADO INICIAL A CADA CLIENTE (Sea Nivel 1 o el Nivel Restaurado)
         for (int i = 0; i < num_jugadores_esperados; ++i) {
-            // 1. Obtenemos las cartas de este jugador específico en formato texto
             std::string mano = sesion.getPlayer(i).getHandAsString();
             
-            // 2. Formateamos el mensaje con un salto de línea ('\n') al final.
-            // El '\n' es VITAL porque le dice al cliente cuándo termina el mensaje.
-            std::string msj = fmt::format("\n=== NIVEL {} ===\nVidas: {} | Shurikens: {}\nTu mano: {}\n", 
-                                                                        sesion.getLevel(), sesion.getLives(), sesion.getShurikens(), mano);            
-            // 3. Enviamos el texto por su cable correspondiente
+            // Ya no dice "Nivel 1" de forma fija, lee el nivel real de la sesión
+            std::string msj = fmt::format("\n=== NIVEL {} ===\nVidas: {} | Shurikens: {}\nTus cartas son: {}\n", 
+                                          sesion.getLevel(), sesion.getLives(), sesion.getShurikens(), mano);
+            
             asio::write(sockets_jugadores[i], asio::buffer(msj));
         }
 
-        // --- EL CEREBRO DEL JUEGO MULTIHILO ---
-        std::mutex mutex_mesa; // Nuestro escudo para proteger la sesión de juego
+        // --- EL CEREBRO DEL JUEGO MULTIHILO (Desde el mutex en adelante se queda igual) ---
+        std::mutex mutex_mesa;
 
         // Creamos un hilo para escuchar a cada jugador individualmente
         std::vector<std::thread> hilos_escucha;

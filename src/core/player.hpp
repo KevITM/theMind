@@ -81,6 +81,10 @@ namespace themind {
                 {"cartas", cartas}
             };
         }
+
+        void fromJson(const json& j) {
+            cartas = j.at("cartas").get<std::vector<int>>();
+        }
     };
 
 }

@@ -45,11 +45,15 @@ namespace themind {
         int getRemainingCards() const {
             return cards.size();
         }
-        
+
         json toJson() const {
             return {
                 {"cards", cards}
             };
+        }
+
+        void fromJson(const json& j) {
+            cards = j.at("cards").get<std::vector<int>>();
         }
     };
 
